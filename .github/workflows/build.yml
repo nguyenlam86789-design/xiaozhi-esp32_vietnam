@@ -6,77 +6,100 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   actions: write
 
 jobs:
   build-firmware:
     name: 🏗 Industrial Pro Pipeline Build
     runs-on: ubuntu-latest
+    # CHÌA KHÓA: Gọi trực tiếp Docker gốc của Espressif, bỏ qua hoàn toàn các bước uses lỗi 404
+    container: espressif/idf:release-v5.4
 
     steps:
       - name: 📂 Checkout Source Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      # GỐC RỄ: Cấu hình RAM, Flash, Exceptions, RTTI và nới sơ đồ phân vùng khủng 6MB
-      - name: 🐍 Create All Hardware Profiles & Partition Table via Python
+      # BƯỚC THẦN KỲ: Dùng Python can thiệp sâu vào code thô để đổi tên cấu hình và tính năng Pro
+      - name: 🐍 Create All Hardware Profiles, Clean Ads & Custom Branding
         shell: python
         run: |
           import os
+          
+          # 1. Ghìm cấu hình phần cứng khủng 16MB Flash / 8MB RAM Octal và nới sơ đồ phân vùng 6MB
           config_content = "CONFIG_ESP_CONSOLE_USB_CDC=y\nCONFIG_ESP_CONSOLE_SECONDARY_USB_CDC=y\nCONFIG_LV_FONT_FMT_TXT_LARGE=y\nCONFIG_LV_USE_IMGFONT=y\nCONFIG_COMPILER_CXX_EXCEPTIONS=y\nCONFIG_COMPILER_CXX_RTTI=y\nCONFIG_SPIRAM_SIZE=8388608\nCONFIG_ESPTOOLPY_FLASHSIZE_16MB=y\nCONFIG_PARTITION_TABLE_CUSTOM=y\nCONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions.csv\"\n"
           with open("sdkconfig.defaults", "w", encoding="utf-8") as f: f.write(config_content)
+
           partition_content = "# Name, Type, SubType, Offset, Size, Flags\nnvs, data, nvs, 0x9000, 0x6000,\nphy_init, data, phy, 0xf000, 0x1000,\nfactory, app, factory, 0x10000, 6M,\nstorage, data, fat, , 4M,\n"
           with open("partitions.csv", "w", encoding="utf-8") as f: f.write(partition_content)
+
+          # 2. Ép cờ Compiler RTTI và Exceptions từ bộ não CMake tổng
           cmake_root = "CMakeLists.txt"
           if os.path.exists(cmake_root):
               with open(cmake_root, "r", encoding="utf-8") as f: content = f.read()
               patch_cmd = '\nset(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=format -Wno-error=format-extra-args -Wno-format")\nset(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=format -Wno-error=format-extra-args -Wno-format -fexceptions -frtti -Wno-error=return-type")\n'
               if "CMAKE_CXX_FLAGS" not in content:
                   with open(cmake_root, "w", encoding="utf-8") as f: f.write(patch_cmd + content)
+
           with open("force_project_fix.h", "w", encoding="utf-8") as hf: hf.write("#define LV_FONT_FMT_TXT_LARGE 1\n#define LV_USE_IMGFONT 1\n")
-          with open("patch_firmware.py", "w", encoding="utf-8") as sf:
-              sf.write("import os\nfor r, d, fs in os.walk('.'):\n    for f in fs:\n        if f.endswith('.cc') or f.endswith('.c') or f.endswith('.h'):\n            fp = os.path.join(r, f)\n            try:\n                c = open(fp, 'r', errors='ignore').read()\n                if 'audio_stream_player' in f and 'Stream:' in c:\n                    start_idx = c.find('ESP_LOGI(TAG, \"Stream:\')\n                    if start_idx != -1:\n                        end_idx = c.find(');', start_idx)\n                        if end_idx != -1: c = c[:start_idx] + '// Thống kê log format sạch!' + c[end_idx+2:]\n                if '#error' in c: c = c.replace('#error', '// #error').replace('LV_FONT_FMT_TXT_LARGE 0', 'LV_FONT_FMT_TXT_LARGE 1')\n                ads_keywords = ['TienHuyIoT', 'Tiến Huy', 'AE Maker', 'YouTube', 'Facebook', 'Donate', 'Ủng hộ']\n                for kw in ads_keywords:\n                    if kw in c: c = c.replace(kw, 'Nguyen Lam')\n                open(fp, 'w').write(c)\n            except: pass\n")
 
-      # BƯỚC 2: Biên dịch sạch chính thức dựa trên Docker Container bảo hiểm v1 của Espressif
-      - name: 🛠️ Setup ESP-IDF, Run Patch Script & Compile
-        uses: espressif/esp-idf-ci-action@v1
-        with:
-          esp_idf_version: release-v5.4
-          target: esp32s3
-          command: |
-            idf.py set-target esp32s3
-            idf.py reconfigure
-            chmod -R 777 .
-            python3 patch_firmware.py
-            idf.py fullclean
-            export CFLAGS="-include $GITHUB_WORKSPACE/force_project_fix.h"
-            export CXXFLAGS="-include $GITHUB_WORKSPACE/force_project_fix.h"
-            idf.py build
+          # 3. SĂN LÙNG VÀ CẢI TẠO CODE THÔ TOÀN DIỆN (ĐỔI TÊN WIFI, BLUETOOTH, XÓA ADS)
+          for r, d, fs in os.walk('.'):
+              for f in fs:
+                  if f.endswith('.cc') or f.endswith('.c') or f.endswith('.h'):
+                      fp = os.path.join(r, f)
+                      try:
+                          c = open(fp, 'r', errors='ignore').read()
+                          
+                          # Vá bẫy lỗi ngắt dòng file nhạc
+                          if 'audio_stream_player' in f and 'Stream:' in c:
+                              start_idx = c.find('ESP_LOGI(TAG, "Stream:')
+                              if start_idx != -1:
+                                  end_idx = c.find(');', start_idx)
+                                  if end_idx != -1: c = c[:start_idx] + '// Băm log format!' + c[end_idx+2:]
+                                  
+                          # NÂNG CẤP PRO: Đổi tên Bluetooth, Wifi AP mặc định sang tên bạn thương hiệu riêng
+                          if "Xiaozhi" in c: c = c.replace('"Xiaozhi"', '"Nguyen_Lam_AI"').replace('"xiaozhi"', '"nguyen_lam_ai"')
+                          if "xiaozhi-s3" in c: c = c.replace("xiaozhi-s3", "nguyen-lam-s3")
+                          
+                          # Xóa sạch bóng rác quảng cáo
+                          ads_keywords = ['TienHuyIoT', 'Tiến Huy', 'AE Maker', 'YouTube', 'Facebook', 'Donate', 'Ủng hộ']
+                          for kw in ads_keywords:
+                              if kw in c: c = c.replace(kw, 'Nguyen Lam')
+                              
+                          open(fp, 'w').write(c)
+                      except: pass
 
-      # BƯỚC 3: Ép gộp file chuẩn esptool theo đúng công thức ĐÃ LÊN TÍCH XANH của fen
+      # BƯỚC 2: Biên dịch trực tiếp trong lõi Docker chính chủ
+      - name: 🛠️ Run Compile Code
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py set-target esp32s3
+          idf.py reconfigure
+          chmod -R 777 .
+          idf.py fullclean
+          export CFLAGS="-include $GITHUB_WORKSPACE/force_project_fix.h"
+          export CXXFLAGS="-include $GITHUB_WORKSPACE/force_project_fix.h"
+          idf.py build
+
+      # BƯỚC 3: Công thức gộp file esptool đại thắng chạy trực tiếp trên nhân Docker
       - name: 🧩 Generate Factory Merged Binary
-        uses: espressif/esp-idf-ci-action@v1
-        with:
-          esp_idf_version: release-v5.4
-          target: esp32s3
-          command: |
-            cd build
-            python3 -m esptool --chip esp32s3 merge_bin -o factory_merged.bin @flash_args
-            cp factory_merged.bin ../factory_merged.bin
+        run: |
+          . $IDF_PATH/export.sh
+          SHORT_HASH=$(echo "${{ github.sha }}" | cut -c1-7)
+          FILENAME="xiaozhi_vietnam_nguyen_lam_${SHORT_HASH}.bin"
+          cd build
+          python3 -m esptool --chip esp32s3 merge_bin -o ${FILENAME} @flash_args
+          cp ${FILENAME} ../${FILENAME}
+          echo "FINAL_FILENAME=${FILENAME}" >> $GITHUB_ENV
 
-      # BƯỚC THU HOẠCH CHỐT HẠ: Lưu tệp gộp sạch quảng cáo 100% lên mây hệ thống Artifacts
+      # BƯỚC 4: Upload file gộp Pro mang tên mã băm thương hiệu Nguyen Lam lên mây
       - name: 📦 Upload Guaranteed Premium Firmware Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: xiaozhi-vietnam-premium-firmware
+          name: xiaozhi-vietnam-industrial-firmware
           retention-days: 7
           compression-level: 0
-          path: |
-            factory_merged.bin
-            build/xiaozhi_vn.bin
-            build/bootloader/bootloader.bin
-            build/partition_table/partition-table.bin
-
-      - name: 📝 Publish Build Summary
-        run: |
-          echo "## 🚀 Xiaozhi Vietnam Premium Build Success!" >> $GITHUB_STEP_SUMMARY
+          path: ${{ env.FINAL_FILENAME }}
