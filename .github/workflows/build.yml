@@ -2,7 +2,7 @@ name: 🚀 Xiaozhi ESP32-S3 Vietnam Industrial Pro Pipeline
 
 on:
   push:
-    branches: [ develop_vn ]
+    branches: [ develop_vn ] # ÉP BUỘC CHẠY: Chỉ cần Commit lưu file là máy ảo tự nổ máy chạy, không cần bấm nút Run thủ công
   workflow_dispatch:
 
 permissions:
