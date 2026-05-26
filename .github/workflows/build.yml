@@ -18,7 +18,7 @@ jobs:
       - name: 📂 Checkout Source Code
         uses: actions/checkout@v4
 
-      # GỐC RỄ: Khóa cấu hình phần cứng khủng 16MB Flash, 8MB RAM Octal và nới sơ đồ phân vùng khủng 6MB
+      # GỐC RỄ: Cấu hình RAM, Flash, Exceptions, RTTI và nới sơ đồ phân vùng khủng 6MB
       - name: 🐍 Create All Hardware Profiles & Partition Table via Python
         shell: python
         run: |
@@ -37,7 +37,7 @@ jobs:
           with open("patch_firmware.py", "w", encoding="utf-8") as sf:
               sf.write("import os\nfor r, d, fs in os.walk('.'):\n    for f in fs:\n        if f.endswith('.cc') or f.endswith('.c') or f.endswith('.h'):\n            fp = os.path.join(r, f)\n            try:\n                c = open(fp, 'r', errors='ignore').read()\n                if 'audio_stream_player' in f and 'Stream:' in c:\n                    start_idx = c.find('ESP_LOGI(TAG, \"Stream:\')\n                    if start_idx != -1:\n                        end_idx = c.find(');', start_idx)\n                        if end_idx != -1: c = c[:start_idx] + '// Thống kê log format sạch!' + c[end_idx+2:]\n                if '#error' in c: c = c.replace('#error', '// #error').replace('LV_FONT_FMT_TXT_LARGE 0', 'LV_FONT_FMT_TXT_LARGE 1')\n                ads_keywords = ['TienHuyIoT', 'Tiến Huy', 'AE Maker', 'YouTube', 'Facebook', 'Donate', 'Ủng hộ']\n                for kw in ads_keywords:\n                    if kw in c: c = c.replace(kw, 'Nguyen Lam')\n                open(fp, 'w').write(c)\n            except: pass\n")
 
-      # BƯỚC 2: ĐÃ SỬA CHUẨN ĐẲNG CẤP - Nâng cấp lên bản v1 chính chủ để thông link tải 100%
+      # BƯỚC 2: Biên dịch sạch chính thức dựa trên Docker Container bảo hiểm v1 của Espressif
       - name: 🛠️ Setup ESP-IDF, Run Patch Script & Compile
         uses: espressif/esp-idf-ci-action@v1
         with:
@@ -53,7 +53,7 @@ jobs:
             export CXXFLAGS="-include $GITHUB_WORKSPACE/force_project_fix.h"
             idf.py build
 
-      # BƯỚC 3: Công thức gộp file esptool đại thắng lồng Docker v1 chính chủ
+      # BƯỚC 3: Ép gộp file chuẩn esptool theo đúng công thức ĐÃ LÊN TÍCH XANH của fen
       - name: 🧩 Generate Factory Merged Binary
         uses: espressif/esp-idf-ci-action@v1
         with:
