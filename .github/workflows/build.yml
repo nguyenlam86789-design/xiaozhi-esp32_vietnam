@@ -91,12 +91,28 @@ jobs:
       # BƯỚC NÂNG CẤP THƯỢNG ĐỈNH: Bản phẳng lỳ một dòng, triệt hạ 100% bẫy gạch chân đỏ lòm của GitHub
       - name: 🚀 Auto-Create Industrial GitHub Release & Publish Build
         uses: softprops/action-gh-release@v2
+
         with:
-          tag_name: release-${{ env.SHORT_HASH }}
-          name: 🚀 Xiaozhi Premium Release [${{ env.SHORT_HASH }}]
-          body: "## 🏆 PIPELINE CÔNG NGHIỆP THÀNH CÔNG!\n- **Thương hiệu:** Nguyen Lam Design 🇻🇳\n- **Cấu hình:** 16MB Flash / 8MB Octal PSRAM / C++ Exceptions / RTTI Runtime\n- **Thanh lọc:** Sạch bóng 100% quảng cáo rác chèn lén.\n\n👉 *Tải duy nhất file gộp bên dưới nạp vào địa chỉ **`0x0`** với cấu hình **Flash Mode: DIO** để hồi sinh mạch!*"
+        tag_name: release-${{ env.SHORT_HASH }}
+
+        name: Xiaozhi Premium Release ${{ env.SHORT_HASH }}
+
+        body: |
+            ## 🏆 PIPELINE CÔNG NGHIỆP THÀNH CÔNG!
+
+            - Thương hiệu: Nguyen Lam Design VN
+            - Cấu hình: 16MB Flash / 8MB Octal PSRAM
+            - Runtime: C++ Exceptions + RTTI
+            - Thanh lọc: Clean quảng cáo
+
+            Nạp file merged vào địa chỉ 0x0
+            Flash Mode: DIO
+
           draft: false
           prerelease: false
-          files: ${{ env.FINAL_FILENAME }}
+
+          files: |
+            ${{ env.FINAL_FILENAME }}
+
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
