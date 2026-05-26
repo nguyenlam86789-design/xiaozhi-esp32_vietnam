@@ -2,7 +2,7 @@ name: 🚀 Xiaozhi ESP32-S3 Vietnam Industrial Pro Pipeline
 
 on:
   push:
-    branches: [ develop_vn ] # ÉP BUỘC CHẠY: Chỉ cần Commit lưu file là máy ảo tự nổ máy chạy, không cần bấm nút Run thủ công
+    branches: [ develop_vn ]
   workflow_dispatch:
 
 permissions:
@@ -37,9 +37,9 @@ jobs:
           with open("patch_firmware.py", "w", encoding="utf-8") as sf:
               sf.write("import os\nfor r, d, fs in os.walk('.'):\n    for f in fs:\n        if f.endswith('.cc') or f.endswith('.c') or f.endswith('.h'):\n            fp = os.path.join(r, f)\n            try:\n                c = open(fp, 'r', errors='ignore').read()\n                if 'audio_stream_player' in f and 'Stream:' in c:\n                    start_idx = c.find('ESP_LOGI(TAG, \"Stream:\')\n                    if start_idx != -1:\n                        end_idx = c.find(');', start_idx)\n                        if end_idx != -1: c = c[:start_idx] + '// Thống kê log format sạch!' + c[end_idx+2:]\n                if '#error' in c: c = c.replace('#error', '// #error').replace('LV_FONT_FMT_TXT_LARGE 0', 'LV_FONT_FMT_TXT_LARGE 1')\n                ads_keywords = ['TienHuyIoT', 'Tiến Huy', 'AE Maker', 'YouTube', 'Facebook', 'Donate', 'Ủng hộ']\n                for kw in ads_keywords:\n                    if kw in c: c = c.replace(kw, 'Nguyen Lam')\n                open(fp, 'w').write(c)\n            except: pass\n")
 
-      # BƯỚC 2: Biên dịch sạch chính thức trong Docker Container
+      # BƯỚC 2: ĐÃ SỬA CHUẨN ĐẲNG CẤP - Nâng cấp lên bản v1 chính chủ để thông link tải 100%
       - name: 🛠️ Setup ESP-IDF, Run Patch Script & Compile
-        uses: espressif/esp-idf-ci-action@v1.1.0
+        uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: release-v5.4
           target: esp32s3
@@ -53,9 +53,9 @@ jobs:
             export CXXFLAGS="-include $GITHUB_WORKSPACE/force_project_fix.h"
             idf.py build
 
-      # BƯỚC 3: Công thức gộp file esptool đại thắng của cụ đệ GPT lồng Docker
+      # BƯỚC 3: Công thức gộp file esptool đại thắng lồng Docker v1 chính chủ
       - name: 🧩 Generate Factory Merged Binary
-        uses: espressif/esp-idf-ci-action@v1.1.0
+        uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: release-v5.4
           target: esp32s3
